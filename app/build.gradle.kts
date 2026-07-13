@@ -47,12 +47,17 @@ android {
 }
 
 dependencies {
-    // Core / Compose BOM keeps all Compose artifact versions aligned
-    implementation(platform("androidx.compose:compose-bom:2024.09.00"))
+    // Core / Compose BOM keeps all Compose artifact versions aligned.
+    // Bumped to a release recent enough that it already matches (or exceeds)
+    // what io.github.kyant0:backdrop-android pulls in transitively — an
+    // older BOM here gets silently overridden by the library's own newer
+    // transitive Compose/core versions, which is what caused the AAR
+    // metadata / "requires AGP X.Y" failures.
+    implementation(platform("androidx.compose:compose-bom:2025.09.00"))
 
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.activity:activity-compose:1.9.2")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

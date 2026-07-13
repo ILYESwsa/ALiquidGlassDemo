@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.emptyBackdrop
 import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
@@ -76,7 +77,7 @@ import kotlinx.coroutines.launch
  * backdrops) needs to be recorded — which is the case for the main scene.
  */
 @Composable
-fun rememberSceneBackdrop(): Backdrop = rememberLayerBackdrop()
+fun rememberSceneBackdrop(): LayerBackdrop = rememberLayerBackdrop()
 
 /**
  * Draws a rounded-rect / circle "pane" of liquid glass over [backdrop].

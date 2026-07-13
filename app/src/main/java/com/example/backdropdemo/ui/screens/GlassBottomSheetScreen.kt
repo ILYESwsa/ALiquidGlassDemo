@@ -34,21 +34,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.backdropdemo.ui.backdrop.GlassSurface
-import com.example.backdropdemo.ui.backdrop.rememberCombinedSceneBackdrop
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
 
 /**
  * ─────────────────────────────────────────────────────────────────────────
  * SECTION: "Glass Bottom Sheet"
  *
- * Demonstrates `rememberCombinedBackdrop`: the sheet has its OWN layer
- * backdrop (`sheetBackdrop`) that records its handle + header area, and it's
- * combined with the shared scene `backdrop` so the sheet's glass body can
- * refract both the app scene behind it AND its own header content, as a
- * single continuous surface.
+ * Demonstrates the library's `exportedBackdrop` parameter on `drawBackdrop`.
+ *
+ * The naive approach — recording the sheet's own content into a second
+ * `layerBackdrop()` nested *inside* the glass surface that's drawing it —
+ * creates a draw loop: the layer would need to draw itself in order to
+ * capture itself. The library's actual solution is `exportedBackdrop`: pass
+ * a second `LayerBackdrop` to `drawBackdrop`, and it will record the
+ * glass surface's own rendered content (background refraction + children)
+ * into that second backdrop *without* re-entering itself. Any other glass
+ * element can then refract `sheetBackdrop` to "see" the sheet, exactly the
+ * same way it would see the app's main scene.
  * ─────────────────────────────────────────────────────────────────────────
  */
 @Composable
@@ -72,8 +79,8 @@ fun GlassBottomSheetScreen(backdrop: Backdrop) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "Uses rememberCombinedBackdrop to merge the scene with the\n" +
-                    "sheet's own recorded layer.",
+                "The sheet exports its own rendered surface via\n" +
+                    "exportedBackdrop, so other glass could refract it too.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.85f)
             )
@@ -119,60 +126,61 @@ private fun GlassBottomSheetContent(
     sceneBackdrop: Backdrop,
     onDismiss: () -> Unit
 ) {
-    // The sheet's own backdrop layer — captures the sheet's handle + header
-    // so that glass drawn on the sheet body can also refract its own chrome,
-    // not only the scene behind it.
-    val sheetLayerBackdrop = rememberLayerBackdrop()
-    // Merge scene + sheet layer into one combined backdrop.
-    val combined = rememberCombinedSceneBackdrop(scene = sceneBackdrop, floating = sheetLayerBackdrop)
+    // A second backdrop the sheet exports itself into — this is what other
+    // glass elements would refract to "see" the sheet. We don't consume it
+    // ourselves in this demo, but it's wired up to show the mechanism.
+    val sheetBackdrop = rememberLayerBackdrop()
 
-    GlassSurface(
-        backdrop = combined,
-        modifier = Modifier
+    Column(
+        Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(32.dp),
-        tint = Color.White.copy(alpha = 0.22f),
-        blurRadius = 18.dp
+            .padding(16.dp)
+            .drawBackdrop(
+                backdrop = sceneBackdrop,
+                exportedBackdrop = sheetBackdrop,
+                shape = { RoundedCornerShape(32.dp) },
+                effects = {
+                    vibrancy()
+                    blur(18.dp.toPx())
+                    lens(refractionHeight = 24.dp.toPx(), refractionAmount = 32.dp.toPx(), chromaticAberration = true)
+                },
+                onDrawSurface = {
+                    drawRect(Color.White.copy(alpha = 0.22f))
+                }
+            )
+            .padding(24.dp)
     ) {
-        Column(
+        Box(
             Modifier
-                .fillMaxWidth()
-                // Record the sheet's own header/handle into its layer
-                // backdrop so `combined` above can refract it too.
-                .layerBackdrop(sheetLayerBackdrop)
-                .padding(24.dp)
+                .align(Alignment.CenterHorizontally)
+                .width(40.dp)
+                .height(4.dp)
+                .background(Color.White.copy(alpha = 0.5f), CircleShape)
+        )
+        Spacer(Modifier.height(20.dp))
+        Text(
+            "Sheet title",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "This panel refracts the app scene behind it, and exports its " +
+                "own rendered surface into a second backdrop via " +
+                "exportedBackdrop — any other glass element could refract " +
+                "the sheet itself using that.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.9f)
+        )
+        Spacer(Modifier.height(20.dp))
+        Button(
+            onClick = onDismiss,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.25f))
         ) {
-            Box(
-                Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .background(Color.White.copy(alpha = 0.5f), CircleShape)
-            )
-            Spacer(Modifier.height(20.dp))
-            Text(
-                "Sheet title",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "This entire panel is one liquid-glass surface refracting " +
-                    "both the screen behind it and its own drag-handle layer, " +
-                    "combined via rememberCombinedBackdrop.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.9f)
-            )
-            Spacer(Modifier.height(20.dp))
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.25f))
-            ) {
-                Text("Close", color = Color.White)
-            }
+            Text("Close", color = Color.White)
         }
     }
 }
+

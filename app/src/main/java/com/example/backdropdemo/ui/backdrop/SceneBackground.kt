@@ -10,7 +10,7 @@ import androidx.compose.ui.graphics.Brush
 import com.example.backdropdemo.ui.theme.GlassGradientEnd
 import com.example.backdropdemo.ui.theme.GlassGradientMid
 import com.example.backdropdemo.ui.theme.GlassGradientStart
-import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 
 /**
@@ -25,11 +25,14 @@ import com.kyant.backdrop.backdrops.layerBackdrop
  *
  * `Modifier.layerBackdrop(backdrop)` is what actually records these pixels
  * into the [backdrop] so downstream `drawBackdrop` calls elsewhere in the
- * tree can sample them.
+ * tree can sample them. This modifier specifically requires a [LayerBackdrop]
+ * (the concrete type `rememberLayerBackdrop()` returns) rather than the
+ * general `Backdrop` interface, since it needs to know it's recording into
+ * a real Compose graphics layer.
  */
 @Composable
 fun SceneBackground(
-    backdrop: Backdrop,
+    backdrop: LayerBackdrop,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit = {}
 ) {

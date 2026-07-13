@@ -113,7 +113,7 @@ fun GlassSurface(
     refractionAmount: Dp = 32.dp,
     chromaticAberration: Boolean = true,
     border: Boolean = true,
-    content: @Composable Box.() -> Unit = {}
+    content: @Composable () -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -232,7 +232,7 @@ fun InteractiveGlassPill(
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
-    content: @Composable Box.() -> Unit
+    content: @Composable () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val pressProgress = remember { Animatable(0f) }

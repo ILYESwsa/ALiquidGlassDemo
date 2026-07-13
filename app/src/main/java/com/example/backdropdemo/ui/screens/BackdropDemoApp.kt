@@ -25,7 +25,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.backdropdemo.ui.backdrop.DecorativeBackground
 import com.example.backdropdemo.ui.backdrop.InteractiveGlassPill
 import com.example.backdropdemo.ui.backdrop.SceneBackground
 import com.example.backdropdemo.ui.backdrop.rememberSceneBackdrop
@@ -57,19 +56,24 @@ fun BackdropDemoApp() {
     val backdrop = rememberSceneBackdrop()
 
     Box(Modifier.fillMaxSize()) {
-        // Background + NavHost are both captured into `backdrop`.
-        SceneBackground(backdrop = backdrop) {
-            DecorativeBackground()
-            NavHost(
-                navController = navController,
-                startDestination = Destination.Home.route,
-                modifier = Modifier.fillMaxSize()
-            ) {
-                composable(Destination.Home.route) { HomeScreen(backdrop) }
-                composable(Destination.Explore.route) { ExploreScreen(backdrop) }
-                composable(Destination.Sheet.route) { GlassBottomSheetScreen(backdrop) }
-                composable(Destination.Controls.route) { GlassControlsScreen(backdrop) }
-            }
+        // Background is captured into `backdrop`. It renders ONLY the
+        // gradient + decorative shapes — no glass surfaces live inside it.
+        SceneBackground(backdrop = backdrop)
+
+        // The NavHost is a SIBLING of SceneBackground, not a child of it.
+        // Its screens use `backdrop` to draw glass (via GlassSurface etc.),
+        // which is only safe because they sit outside the layer that
+        // `backdrop` itself records — see SceneBackground's doc comment for
+        // why nesting them would cause a native stack-overflow crash.
+        NavHost(
+            navController = navController,
+            startDestination = Destination.Home.route,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            composable(Destination.Home.route) { HomeScreen(backdrop) }
+            composable(Destination.Explore.route) { ExploreScreen(backdrop) }
+            composable(Destination.Sheet.route) { GlassBottomSheetScreen(backdrop) }
+            composable(Destination.Controls.route) { GlassControlsScreen(backdrop) }
         }
 
         // The glass bottom bar itself: drawn OUTSIDE the layerBackdrop scope

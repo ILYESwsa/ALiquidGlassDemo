@@ -27,28 +27,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Generates gradle-wrapper.jar + gradlew/gradlew.bat if they aren't
-      # already committed, using the version pinned in
-      # gradle/wrapper/gradle-wrapper.properties.
-      - name: Generate Gradle wrapper
-        run: gradle wrapper --gradle-version 8.13
-        if: hashFiles('gradlew') == ''
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
+      # Installs the exact Gradle version this project needs and runs builds
+      # with it directly. This avoids relying on gradlew (which isn't
+      # committed) or on whatever "gradle" binary happens to be preinstalled
+      # on the runner image to bootstrap the wrapper — that preinstalled
+      # version drifts over time (e.g. GitHub's runner shipped Gradle 9.6.1,
+      # which is incompatible with AGP 8.x: see
+      # https://github.com/gradle/gradle/issues/38073). Pinning here keeps
+      # the build version-stable regardless of runner image changes.
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
+          gradle-version: '8.13'
+          cache-read-only: false
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

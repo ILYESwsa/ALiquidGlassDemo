@@ -8,11 +8,21 @@ plugins {
 
 android {
     namespace = "com.example.backdropdemo"
-    compileSdk = 36
+    // compileSdk 37 is required by io.github.kyant0:backdrop:2.0.0 (its AAR
+    // metadata sets minCompileSdk=37). AGP 8.13.2's "recommended" max is 36,
+    // so the matching `android.suppressUnsupportedCompileSdk=37` in
+    // gradle.properties silences the AGP warning. The hard `checkAarMetadata`
+    // task only checks `compileSdk >= library.minCompileSdk` (37 >= 37 ✓),
+    // so it passes once we set this. AGP itself accepts compileSdk values
+    // above its recommended max as long as the SDK platform is installed.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.example.backdropdemo"
         minSdk = 24
+        // targetSdk intentionally stays at 36: compileSdk (which new APIs can
+        // be referenced) and targetSdk (which runtime behaviors opt in to) are
+        // independent — no need to opt the demo into SDK 37 runtime changes.
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"

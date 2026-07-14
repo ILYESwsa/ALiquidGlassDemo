@@ -41,6 +41,17 @@ jobs:
           gradle-version: '8.13'
           cache-read-only: false
 
+      # Explicitly install the Android 37 platform. `io.github.kyant0:backdrop:2.0.0`
+      # sets minCompileSdk=37 in its AAR metadata, so AGP's `checkAarMetadata`
+      # task hard-fails unless compileSdk >= 37 (set in app/build.gradle.kts).
+      # AGP 8.13.2 only "recommends" up to SDK 36, but it will still compile
+      # against 37 when the platform is present — the matching
+      # `android.suppressUnsupportedCompileSdk=37` in gradle.properties silences
+      # the AGP warning. On ubuntu-latest the SDK licenses are pre-accepted, so
+      # `yes |` just satisfies any remaining prompt. This step is idempotent.
+      - name: Install Android SDK 37
+        run: yes | sdkmanager "platforms;android-37" >/dev/null || true
+
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
 

@@ -74,7 +74,17 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.0")
 
     // CMP Backdrop — liquid glass effects library (drawBackdrop, blur/lens/vibrancy, etc.)
-    implementation("io.github.kyant0:backdrop-android:2.0.0-alpha03")
+    //
+    // IMPORTANT: depend on the root coordinate `io.github.kyant0:backdrop` (NOT
+    // `...:backdrop-android`). The root artifact is published with Gradle module
+    // metadata and Gradle will resolve the correct Android variant automatically.
+    //
+    // Must be >= 2.0.0. `InteractiveHighlight.kt` uses two public symbols that
+    // only became available in the stable 2.0.0 release:
+    //   - `com.kyant.backdrop.asComposeShader()`              (new in 2.0.0)
+    //   - `com.kyant.backdrop.isRuntimeShaderSupported()`     (was `internal` in alpha03)
+    // On 2.0.0-alpha03 the build fails with "Unresolved reference" for both.
+    implementation("io.github.kyant0:backdrop:2.0.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

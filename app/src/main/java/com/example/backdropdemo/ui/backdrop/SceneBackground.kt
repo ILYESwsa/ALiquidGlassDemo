@@ -20,7 +20,7 @@ import com.kyant.backdrop.backdrops.layerBackdrop
  * IMPORTANT — this composable renders ONLY the background decoration
  * (gradient + [DecorativeBackground]) and nothing else. It must NOT contain
  * any content that itself refracts [backdrop] (e.g. a `GlassSurface`,
- * `InteractiveGlassPill`, or the `NavHost` full of screens that use them).
+ * `GlassBottomTabs`, or the `NavHost` full of screens that use them).
  *
  * If a glass surface refracting `backdrop` were placed *inside* this
  * function's captured layer, the layer would need to render itself in order

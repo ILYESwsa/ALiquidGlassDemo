@@ -18,7 +18,11 @@ package com.example.backdropdemo.ui.backdrop
  * 2. You attach a backdrop to the layer that should be "captured" using
  *    `Modifier.layerBackdrop(backdrop)`. Anything drawn under this modifier
  *    becomes the source pixels that glass surfaces elsewhere can refract,
- *    blur and tint.
+ *    blur and tint. IMPORTANT: whatever calls `layerBackdrop(backdrop)` must
+ *    be a SIBLING of, never a PARENT of, anything that calls
+ *    `drawBackdrop(backdrop)` — nesting them causes the render tree to need
+ *    to draw itself to know what to draw, which crashes with a native stack
+ *    overflow. See SceneBackground.kt's doc comment for the full story.
  *
  * 3. Any composable that should *look like glass* uses
  *    `Modifier.drawBackdrop(backdrop, shape, effects, onDrawSurface)`:
@@ -29,32 +33,26 @@ package com.example.backdropdemo.ui.backdrop
  *      - `onDrawSurface` → drawn *after* the effects, this is where you add
  *                        the translucent tint / highlight that makes the
  *                        glass visible and keeps text readable on top of it.
+ *
+ * The more elaborate interactive components (GlassButton, GlassToggle,
+ * GlassBottomTabs, GlassSlider) live in their own files, each ported closely
+ * from the library's own official catalog app so the drag/press physics
+ * match the real thing rather than a simplified approximation.
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.emptyBackdrop
@@ -65,7 +63,6 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import kotlinx.coroutines.launch
 
 /**
  * Convenience wrapper for the app's single top-level scene backdrop.
@@ -82,9 +79,10 @@ fun rememberSceneBackdrop(): LayerBackdrop = rememberLayerBackdrop()
 /**
  * Draws a rounded-rect / circle "pane" of liquid glass over [backdrop].
  *
- * This is the single most reused piece of the demo: bottom bars, bottom
- * sheets, sliders and buttons all funnel through this composable so every
- * glass surface in the app is visually consistent.
+ * This is the simplest glass building block in the demo — a static panel
+ * with no press/drag physics — used for cards, sheets, and section
+ * backgrounds. For interactive controls, see GlassButton, GlassToggle,
+ * GlassBottomTabs, and GlassSlider instead.
  *
  * @param backdrop        the recorded background this glass will refract.
  * @param shape           outline of the glass pane.
@@ -163,122 +161,6 @@ fun GlassSurface(
 }
 
 /**
- * A tinted, "liquid glass" icon-button surface.
- *
- * Demonstrates `BlendMode.Hue`: instead of simply overlaying a flat colored
- * rectangle (which would just dim/muddy the backdrop), we blend only the
- * *hue* channel of [tint] onto the refracted backdrop pixels, keeping their
- * original luminance/saturation. The result: the glass still looks like
- * glass (you can see light and dark variation through it) but is unmistakably
- * colored, exactly like tinted automotive or architectural glass.
- */
-@Composable
-fun TintedGlassIconButton(
-    backdrop: Backdrop,
-    tint: Color,
-    modifier: Modifier = Modifier,
-    size: Dp = 56.dp,
-    onClick: () -> Unit = {},
-    icon: @Composable () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = modifier
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { CircleShape },
-                effects = {
-                    vibrancy()
-                    blur(6f)
-                    lens(refractionHeight = 14f, refractionAmount = 18f, chromaticAberration = true)
-                },
-                onDrawSurface = {
-                    // Base translucent glass tint so the button reads as a
-                    // surface even before the hue tint is applied.
-                    drawRect(Color.White.copy(alpha = 0.14f))
-                    // BlendMode.Hue: paints only the tint's hue over the
-                    // refracted pixels beneath, preserving their brightness.
-                    // This is what lets colored glass still show highlights
-                    // and shadows from whatever is behind it.
-                    drawRect(
-                        color = tint.copy(alpha = 0.85f),
-                        blendMode = BlendMode.Hue
-                    )
-                }
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        icon()
-    }
-}
-
-/**
- * Interactive glass "pill" used inside the bottom bar. Demonstrates the
- * documented `layerBlock` pattern: on press, the pill scales up, but the
- * scale is applied through `drawBackdrop`'s own `layerBlock` (not a separate
- * `graphicsLayer`) so the *backdrop sampling itself* doesn't scale — only the
- * visible glass shape does. Getting this wrong makes the refraction sample
- * area drift away from the visual bounds when pressed.
- */
-@Composable
-fun InteractiveGlassPill(
-    backdrop: Backdrop,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {},
-    content: @Composable () -> Unit
-) {
-    val scope = rememberCoroutineScope()
-    val pressProgress = remember { Animatable(0f) }
-
-    Box(
-        modifier = modifier
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { CircleShape },
-                effects = {
-                    vibrancy()
-                    blur(4f)
-                    lens(refractionHeight = 16f, refractionAmount = 32f, chromaticAberration = true)
-                },
-                // layerBlock scales the *rendered glass layer*, independent
-                // from the backdrop capture coordinates, so refraction stays
-                // pixel-accurate while the pill visually grows on press.
-                layerBlock = {
-                    val progress = pressProgress.value
-                    val maxScale = (size.width + 16f.dp.toPx()) / size.width
-                    val scale = lerp(1f, maxScale, progress)
-                    scaleX = scale
-                    scaleY = scale
-                },
-                onDrawSurface = {
-                    val alpha = if (selected) 0.55f else 0.32f
-                    drawRect(Color.White.copy(alpha = alpha))
-                }
-            )
-            .clickable(interactionSource = null, indication = null, onClick = onClick)
-            .pointerInput(scope) {
-                val spec = spring<Float>(dampingRatio = 0.5f, stiffness = 300f)
-                awaitEachGesture {
-                    awaitFirstDown()
-                    scope.launch { pressProgress.animateTo(1f, spec) }
-                    waitForUpOrCancellation()
-                    scope.launch { pressProgress.animateTo(0f, spec) }
-                }
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        content()
-    }
-}
-
-/**
  * Demonstrates `rememberCombinedBackdrop`: merges the *scene* backdrop
  * (the app's main gradient/content layer) with a *floating* backdrop (e.g. a
  * bottom sheet's own drag handle layer) into a single Backdrop. Any glass
@@ -286,6 +168,11 @@ fun InteractiveGlassPill(
  * sources as if they were one continuous background — useful when a floating
  * glass element should also refract other floating glass elements above the
  * base scene, not just the scene itself.
+ *
+ * GlassToggle, GlassBottomTabs, and GlassSlider all use
+ * `rememberCombinedBackdrop` directly and more elaborately (combining the
+ * scene with a *transformed* view of a sibling's own backdrop); this
+ * standalone wrapper demonstrates the simpler two-backdrop case on its own.
  */
 @Composable
 fun rememberCombinedSceneBackdrop(scene: Backdrop, floating: Backdrop): Backdrop =
@@ -294,10 +181,9 @@ fun rememberCombinedSceneBackdrop(scene: Backdrop, floating: Backdrop): Backdrop
 /**
  * Demonstrates `rememberCanvasBackdrop`: a backdrop you populate yourself by
  * drawing directly into a Canvas, instead of capturing a Compose layer. Used
- * here to build a small procedural "swatch" backdrop for the glass slider —
- * a colorful animated gradient painted with normal DrawScope calls that the
- * slider's glass thumb can then refract, exactly like it would refract real
- * app content.
+ * here to build a small procedural "swatch" backdrop — a colorful gradient
+ * painted with normal DrawScope calls that a glass surface can then refract,
+ * exactly like it would refract real app content.
  */
 @Composable
 fun rememberProceduralBackdrop(colors: List<Color>): Backdrop =
@@ -307,10 +193,10 @@ fun rememberProceduralBackdrop(colors: List<Color>): Backdrop =
         // transitions to bend and frost — flat colors would make the glass
         // effects invisible.
         drawRect(
-            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+            brush = Brush.linearGradient(
                 colors = colors,
-                start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                end = androidx.compose.ui.geometry.Offset(size.width, size.height)
+                start = Offset(0f, 0f),
+                end = Offset(size.width, size.height)
             )
         )
     }
